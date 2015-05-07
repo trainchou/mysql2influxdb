@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+import MySQLdb
+import os
+from influxdb import InfluxDBClient
+
+# connect
+db = MySQLdb.connect(host="nn", user="root", passwd="", db="test")
+#client = InfluxDBClient('do', 8086, 'root', 'root', 'houseenv2')
+#client.create_database('houseenv2')
+cursor = db.cursor()
+
+# execute SQL select statement
+cursor.execute("SELECT * FROM  `houseenv` limit 0 , 1")
+
+# commit your changes
+db.commit()
+
+# get the number of rows in the resultset
+numrows = int(cursor.rowcount)
+
+# get and import one row to influxdb at a time.
+for x in range(0,numrows):
+    row = cursor.fetchone()
+    record = 'curl -X POST -d \'[{"name": "th","columns": ["time", "tmpr","hmdt"],"points": [['+ str(row[0])+','+str(row[1])+','+str(row[2])+' ]]}]\' \'http://do:8086/db/houseenv/series?u=root&p=root\''
+#    json_body = '[{"name": "th","columns": ["time", "tmpr","hmdt"],"points": [['+ str(row[0])+','+str(row[1])+','+str(row[2])+' ]]}]'
+#    client.write_points(json_body)
+    os.system(record)
