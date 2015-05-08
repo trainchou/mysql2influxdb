@@ -1,28 +1,64 @@
 #!/usr/bin/python
 
+import argparse
 import MySQLdb
-import os
 from influxdb import InfluxDBClient
 
-# connect
-db = MySQLdb.connect(host="nn", user="root", passwd="", db="test")
-#client = InfluxDBClient('do', 8086, 'root', 'root', 'houseenv2')
-#client.create_database('houseenv2')
-cursor = db.cursor()
+def main(host='localhost', port=8086):
+    # connect
+    db = MySQLdb.connect(host="nn", user="root", passwd="", db="test")
+    client = InfluxDBClient(host, port , 'root', 'root', 'houseenv')
+    
+    cursor = db.cursor()
+    
+    # execute SQL select statement
+    cursor.execute("SELECT * FROM  `houseenv` limit 0 , 10")
+    
+    # commit your changes
+    db.commit()
+    
+    # get the number of rows in the resultset
+    numrows = int(cursor.rowcount)
+    
+    # get and import one row to influxdb at a time.
+    client.create_database('houseenv')
+    #client.create_retention_policy('awesome_policy', 'inf', 7, default=True)
+    #client.switch_user("tc","abc.123")
+    
+    for x in range(0,numrows):
+        row = cursor.fetchone()
+        json_body = [
+        {
+            "name": "th",
+            "tags": {
+                "region": "asc",
+                "room": "living"
+            },
+            "timestamp": row[0],
+            "precision": "ms",
+            "fields": {
+                "tmpr":row[1],
+                "hmdt":row[2]
+            }
+        }
+        ]
+        client.write_points(json_body)
+    
+        result = client.query('select * from th;')
+    
+        print("Result: {0}".format(result))
 
-# execute SQL select statement
-cursor.execute("SELECT * FROM  `houseenv` limit 0 , 1")
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='example code to play with InfluxDB')
+    parser.add_argument('--host', type=str, required=False, default='localhost',
+                        help='hostname of InfluxDB http API')
+    parser.add_argument('--port', type=int, required=False, default=8086,
+                        help='port of InfluxDB http API')
+    return parser.parse_args()
 
-# commit your changes
-db.commit()
 
-# get the number of rows in the resultset
-numrows = int(cursor.rowcount)
+if __name__ == '__main__':
+    args = parse_args()
+    main(host=args.host, port=args.port)
 
-# get and import one row to influxdb at a time.
-for x in range(0,numrows):
-    row = cursor.fetchone()
-    record = 'curl -X POST -d \'[{"name": "th","columns": ["time", "tmpr","hmdt"],"points": [['+ str(row[0])+','+str(row[1])+','+str(row[2])+' ]]}]\' \'http://do:8086/db/houseenv/series?u=root&p=root\''
-#    json_body = '[{"name": "th","columns": ["time", "tmpr","hmdt"],"points": [['+ str(row[0])+','+str(row[1])+','+str(row[2])+' ]]}]'
-#    client.write_points(json_body)
-    os.system(record)
